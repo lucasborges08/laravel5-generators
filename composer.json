@@ -1,0 +1,22 @@
+{
+    "name": "gabrieloliverio/laravel5-generators",
+    "description": "Database metadata-based generators for Laravel 5",
+    "keywords": ["laravel5", "laravel", "oracle", "mysql"],
+    "license": "MIT",
+    "authors": [{
+        "name": "Gabriel Olivério",
+        "email": "gabrieloliverio.py@gmail.com"
+    }],
+    "require": {
+        "php": ">=5.3",
+        "illuminate/support": "5.3.*",
+        "illuminate/database": "5.3.*",
+        "illuminate/filesystem": "5.3.*"
+    },
+    "autoload": {
+        "psr-4": {
+            "Bronco\\": "src/"
+        }
+    },
+    "minimum-stability": "dev"
+}
