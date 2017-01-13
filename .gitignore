@@ -1,0 +1,5 @@
+*.orig
+/vendor
+.env
+composer.lock
+/.php_cs.cache
