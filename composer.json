@@ -15,7 +15,7 @@
     },
     "autoload": {
         "psr-4": {
-            "Bronco\\": "src/"
+            "Bronco\\LaravelGenerators\\": "src/"
         }
     },
     "minimum-stability": "dev"

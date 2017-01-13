@@ -13,14 +13,14 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Where the templates for the generators are stored...
+    | Where the stubs for the generators are stored...
     |--------------------------------------------------------------------------
     |
     */
-    'model_template_path' => app_path('Generators/Templates/Model.php'),
-    'controller_template_path' => app_path('Generators/Templates/Controller.php'),
-    'model_parameter_path' => app_path('Generators/Templates/Parameters/Model.php'),
-    'controller_parameter_path' => app_path('Generators/Templates/Parameters/Controller.php'),
+    'model_template_path' => app_path('Generators/Stubs/Model.php'),
+    'controller_template_path' => app_path('Generators/Stubs/Controller.php'),
+    'model_parameter_path' => app_path('Generators/Stubs/Parameters/Model.php'),
+    'controller_parameter_path' => app_path('Generators/Stubs/Parameters/Controller.php'),
     /*
     |--------------------------------------------------------------------------
     | Where the generated files will be saved...
