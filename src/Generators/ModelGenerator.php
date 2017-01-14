@@ -2,7 +2,7 @@
 namespace Bronco\LaravelGenerators\Generators;
 
 use Illuminate\Filesystem\Filesystem;
-use Bronco\LaravelGenerators\Metadata\Connector;
+use Bronco\LaravelGenerators\Connectors\Connector;
 
 class ModelGenerator extends Generator {
 
@@ -52,13 +52,13 @@ class ModelGenerator extends Generator {
 
         $defaultConnection = config('database.default');
 
-        $this->parameters = $this->loadParameters(config('generator.model_parameter_path'));
+        $this->parameters = $this->loadParameters(config('generators.model_parameter_path'));
         $this->connector = $connector;
         $this->subNamespace = implode('\\', array_slice($qualifiedNameParts, 0, count($qualifiedNameParts) - 1));
         $this->className = array_slice($qualifiedNameParts, -1, 1)[0];
-        $this->filePath = config('generator.model_target_path') . implode('/', array_slice($qualifiedNameParts, 0, count($qualifiedNameParts) - 1)) . "/{$this->className}.php";
+        $this->filePath = config('generators.model_target_path') . implode('/', array_slice($qualifiedNameParts, 0, count($qualifiedNameParts) - 1)) . "/{$this->className}.php";
         $this->qualifiedName = "Models\\{$this->subNamespace}\\{$this->className}";
-        $this->usesSoftDeletes = config('generator.defaults.uses_soft_deletes');
+        $this->usesSoftDeletes = config('generators.defaults.uses_soft_deletes');
         $this->usesSequence = is_a($this->connector, "App\Generators\Metadata\OracleConnector");
 
         if ($table) {
@@ -109,7 +109,7 @@ class ModelGenerator extends Generator {
 
     public function compileTags()
     {
-        $content = $this->filesystem->get(config('generator.model_template_path'));
+        $content = $this->filesystem->get(config('generators.model_template_path'));
 
         $this->replaceTag('app_namespace', app()->getNamespace(), $content)
              ->replaceTag('sub_namespace', $this->subNamespace, $content)

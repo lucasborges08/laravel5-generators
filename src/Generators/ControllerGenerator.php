@@ -2,7 +2,7 @@
 namespace Bronco\LaravelGenerators\Generators;
 
 use Illuminate\Filesystem\Filesystem;
-use Bronco\LaravelGenerators\Metadata\Connector;
+use Bronco\LaravelGenerators\Connectors\Connector;
 
 class ControllerGenerator extends Generator {
 
@@ -41,16 +41,16 @@ class ControllerGenerator extends Generator {
 
         $defaultConnection = config('database.default');
 
-        $this->parameters = $this->loadParameters(config('generator.controller_parameter_path'));
-        $this->modelParameters = $this->loadParameters(config('generator.model_parameter_path'));
+        $this->parameters = $this->loadParameters(config('generators.controller_parameter_path'));
+        $this->modelParameters = $this->loadParameters(config('generators.model_parameter_path'));
         $this->connector = $connector;
         $this->mainModelName = array_slice($mainModelParts, -1, 1)[0];
         $this->subNamespace = implode('\\', array_slice($qualifiedNameParts, 0, count($qualifiedNameParts) - 1));
         $this->className = array_slice($qualifiedNameParts, -1, 1)[0];
-        $this->filePath = config('generator.controller_target_path') . implode('/', array_slice($qualifiedNameParts, 0, count($qualifiedNameParts) - 1)) . "/{$this->className}.php";
+        $this->filePath = config('generators.controller_target_path') . implode('/', array_slice($qualifiedNameParts, 0, count($qualifiedNameParts) - 1)) . "/{$this->className}.php";
         $this->qualifiedName = "Http\\Controllers\\{$this->subNamespace}\\{$this->className}";
 
-        $modelsSubNamespace = app()->getNamespace() . config('generator.defaults.models_sub_namespace');
+        $modelsSubNamespace = app()->getNamespace() . config('generators.defaults.models_sub_namespace');
         $this->mainModelQualifiedName = str_replace('/', '\\', "$modelsSubNamespace$mainModel");
         $this->mainModelInstanceName = lcfirst(str_replace('Model', '', $this->mainModelName));
         $this->mainModelInstance = new $this->mainModelQualifiedName();
@@ -96,11 +96,11 @@ class ControllerGenerator extends Generator {
 
     public function compileTags()
     {
-        $content = $this->filesystem->get(config('generator.controller_template_path'));
+        $content = $this->filesystem->get(config('generators.controller_template_path'));
 
         $this->replaceTag('app_namespace', app()->getNamespace(), $content)
              ->replaceTag('sub_namespace', $this->subNamespace, $content)
-             ->replaceTag('model_sub_namespace', config('generator.defaults.models_sub_namespace'), $content)
+             ->replaceTag('model_sub_namespace', config('generators.defaults.models_sub_namespace'), $content)
              ->replaceTag('class_name', $this->className, $content)
              ->replaceTag('model_name', $this->mainModelName, $content)
              ->replaceTag('model_qualified_name', $this->mainModelQualifiedName, $content)
