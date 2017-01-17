@@ -4,14 +4,49 @@ namespace Bronco\LaravelGenerators\Generators;
 use Illuminate\Filesystem\Filesystem;
 use Bronco\LaravelGenerators\Connectors\Connector;
 
-class ModelGenerator extends Generator {
-
+class ModelGenerator extends Generator
+{
+    /**
+     * Database connector used to generate the object
+     *
+     * @var \Bronco\LaravelGenerators\Connectors\Connector
+     */
     protected $connector;
+
+    /**
+     * Class name
+     *
+     * @var string
+     */
     protected $className;
+
+    /**
+     * Sequence name
+     *
+     * @var string
+     */
     protected $sequenceName;
-    protected $sequencePattern;
+
+    /**
+     * Table name
+     *
+     * @var string
+     */
     protected $tableName;
+
+    /**
+     * Database name
+     *
+     * @var string
+     */
     protected $databaseName;
+
+    /**
+     * Uses sequence
+     *
+     * @var bool
+     */
+    protected $usesSequence;
 
     /**
      * Uses soft deletes
@@ -39,16 +74,14 @@ class ModelGenerator extends Generator {
      *
      * @var string
      */
-    protected $filePath;
+    protected $targetFilePath;
 
     public function __construct(Filesystem $filesystem, Connector $connector, $qualifiedName, $table)
     {
         parent::__construct($filesystem);
 
-        $qualifiedNameParts = explode("/", $qualifiedName);
 
-        if (count($qualifiedNameParts) < 2)
-            throw new \InvalidArgumentException('You must inform the class\'s qualified name');
+        $qualifiedNameParts = explode("/", $qualifiedName);
 
         $defaultConnection = config('database.default');
 
@@ -56,10 +89,10 @@ class ModelGenerator extends Generator {
         $this->connector = $connector;
         $this->subNamespace = implode('\\', array_slice($qualifiedNameParts, 0, count($qualifiedNameParts) - 1));
         $this->className = array_slice($qualifiedNameParts, -1, 1)[0];
-        $this->filePath = config('generators.model_target_path') . implode('/', array_slice($qualifiedNameParts, 0, count($qualifiedNameParts) - 1)) . "/{$this->className}.php";
+        $this->setTargetFilePath(config('generators.model_target_path'), $qualifiedName);
         $this->qualifiedName = "Models\\{$this->subNamespace}\\{$this->className}";
         $this->usesSoftDeletes = config('generators.defaults.uses_soft_deletes');
-        $this->usesSequence = is_a($this->connector, "App\Generators\Metadata\OracleConnector");
+        $this->usesSequence = is_a($this->connector, "Bronco\LaravelGeneratorsConnectors\OracleConnector");
 
         if ($table) {
             $tableParts = explode('.', $table);
@@ -81,12 +114,12 @@ class ModelGenerator extends Generator {
         try {
             $this->primaryKey = strtolower($this->connector->getPrimaryKeys($this->databaseName, $this->tableName)[0]->column_name);
         } catch (\ErrorException $e) {
-            throw new \RuntimeException("Could not find primary keys in '{$this->qualifiedTableName}'" );
+            throw new \RuntimeException("Could not find primary keys in '{$this->qualifiedTableName}'");
         }
 
         try {
             $this->allColumns = $this->connector->getColumns($this->databaseName, $this->tableName);
-            $nonPrimaryKeyFilter = function($column) {
+            $nonPrimaryKeyFilter = function ($column) {
                 return (strtolower($column->column_name) != strtolower($this->primaryKey));
             };
             $this->nonPrimaryKeyColumns = array_filter(
@@ -94,17 +127,18 @@ class ModelGenerator extends Generator {
                 $nonPrimaryKeyFilter
             );
         } catch (\ErrorException $e) {
-            throw new \RuntimeException("Could not find columns in '{$this->qualifiedTableName}'" );
+            throw new \RuntimeException("Could not find columns in '{$this->qualifiedTableName}'");
         }
     }
 
     public function make()
     {
-        if (!$this->filesystem->exists(dirname($this->filePath)))
-            $this->filesystem->makeDirectory(dirname($this->filePath), 0755, true);
+        if (!$this->filesystem->exists(dirname($this->getTargetFilePath()))) {
+            $this->filesystem->makeDirectory(dirname($this->getTargetFilePath()), 0755, true);
+        }
 
         $content = $this->compileTags();
-        $this->filesystem->put($this->filePath, $content);
+        $this->filesystem->put($this->getTargetFilePath(), $content);
     }
 
     public function compileTags()
@@ -153,7 +187,7 @@ class ModelGenerator extends Generator {
             $content
         );
 
-        $deletedAtFilter = function($column) {
+        $deletedAtFilter = function ($column) {
             if (preg_match('/date|timestamp/i', $column->data_type)
              && preg_match($this->parameters['patterns']['deleted_at_column'], $column->column_name)) {
                 return true;
@@ -180,7 +214,7 @@ class ModelGenerator extends Generator {
 
     public function compileCreatedAtColumn(&$content)
     {
-        $createdAtFilter = function($column) {
+        $createdAtFilter = function ($column) {
             if (preg_match('/date|timestamp/i', $column->data_type) && preg_match($this->parameters['patterns']['created_at_column'], $column->column_name)) {
                 return true;
             } else {
@@ -206,7 +240,7 @@ class ModelGenerator extends Generator {
 
     public function compileUpdatedAtColumn(&$content)
     {
-        $updatedAtFilter = function($column) {
+        $updatedAtFilter = function ($column) {
             if (preg_match('/date|timestamp/i', $column->data_type) && preg_match($this->parameters['patterns']['updated_at_column'], $column->column_name)) {
                 return true;
             } else {
@@ -243,7 +277,6 @@ class ModelGenerator extends Generator {
                  ->replaceTag('sequence_name', $sequenceName, $sequenceProperty)
                  ->replaceTag('database_name', $this->databaseName, $sequenceProperty)
                  ->replaceTag('sequence_property', $sequenceProperty, $content);
-
         } else {
             $this->replaceTag('sequence_property', '', $content);
         }
@@ -272,9 +305,33 @@ class ModelGenerator extends Generator {
         return $this;
     }
 
-    public function getFilePath()
+    public function getTargetFilePath()
     {
-        return $this->filePath;
+        return $this->targetFilePath;
+    }
+
+    public function setTargetFilePath($path, $qualifiedName)
+    {
+        $qualifiedNameParts = explode("/", $qualifiedName);
+
+        if (count($qualifiedNameParts) < 2) {
+            throw new \InvalidArgumentException('You must inform the class\'s qualified name');
+        }
+
+        if (!$this->getClassName()) {
+            throw new \InvalidArgumentException("Invalid class name: {$this->getClassName()}");
+        }
+
+        if ($this->filesystem->isDirectory($path)) {
+            $this->targetFilePath = $path . implode('/', array_slice($qualifiedNameParts, 0, count($qualifiedNameParts) - 1)) . "/{$this->getClassName()}.php";
+        } else {
+            $this->targetFilePath = $path;
+        }
+    }
+
+    public function getClassName()
+    {
+        return $this->className;
     }
 
     public function getSequenceName()
@@ -282,9 +339,14 @@ class ModelGenerator extends Generator {
         return $this->sequenceName;
     }
 
-    public function setUsesSoftDeletes($value)
+    public function getUsesSequence()
     {
-        $this->usesSoftDeletes = $value;
+        return $this->usesSequence;
+    }
+
+    public function setUsesSequence($value)
+    {
+        $this->usesSequence = $value;
     }
 
     public function getUsesSoftDeletes()
@@ -292,4 +354,8 @@ class ModelGenerator extends Generator {
         return $this->usesSoftDeletes;
     }
 
+    public function setUsesSoftDeletes($value)
+    {
+        $this->usesSoftDeletes = $value;
+    }
 }
