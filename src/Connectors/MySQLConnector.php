@@ -2,12 +2,15 @@
 
 use DB;
 
-/**
- *
- */
 class MySQLConnector implements Connector
 {
     private static $instance;
+    private $connection;
+
+    public function __construct()
+    {
+        $this->connection = 'mysql';
+    }
 
     public static function getInstance()
     {
@@ -76,4 +79,55 @@ class MySQLConnector implements Connector
             ->orderBy('col.column_name')
             ->get();
     }
+
+    public function getHost()
+    {
+        return config("database.connections.{$this->getConnection()}.host");
+    }
+
+    public function setHost($host)
+    {
+        config(["database.connections.{$this->getConnection()}.host" => $host]);
+    }
+
+    public function getDatabase()
+    {
+        return config("database.connections.{$this->getConnection()}.database");
+    }
+
+    public function setDatabase($database)
+    {
+        config(["database.connections.{$this->getConnection()}.database" => $database]);
+    }
+
+    public function getUsername()
+    {
+        return config("database.connections.{$this->getConnection()}.username");
+    }
+
+    public function setUsername($username)
+    {
+        config(["database.connections.{$this->getConnection()}.username" => $username]);
+    }
+
+    public function getPassword()
+    {
+        return config("database.connections.{$this->getConnection()}.password");
+    }
+
+    public function setPassword($password)
+    {
+        config(["database.connections.{$this->getConnection()}.password" => $password]);
+    }
+
+    public function getConnection()
+    {
+        return $this->connection;
+    }
+
+    public function setConnection($connection)
+    {
+        $this->connection = $connection;
+    }
+
 }
