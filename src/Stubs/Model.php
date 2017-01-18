@@ -1,10 +1,10 @@
-<?php namespace {{app_namespace}}Models\{{sub_namespace}};
+<?php namespace {{app_namespace}}Models\{{namespace}};
 
 {{use_soft_deletes_definition}}
 
 use Jackhammer\Database\Eloquent\Model;
 
-class {{model_name}} extends Model
+class {{class_name}} extends Model
 {
     {{use_soft_deletes_trait}}
     {{sequence_property}}

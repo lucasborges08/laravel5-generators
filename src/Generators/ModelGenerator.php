@@ -70,6 +70,27 @@ class ModelGenerator extends Generator
     protected $qualifiedName;
 
     /**
+     * Primary key name
+     *
+     * @var string
+     */
+    protected $primaryKeyName;
+
+    /**
+     * Primary key column
+     *
+     * @var \Illuminate\Database\Eloquent\Model
+     */
+    protected $primaryKey;
+
+    /**
+     * Class's namespace
+     *
+     * @var string
+     */
+    protected $namespace;
+
+    /**
      * Class's file path
      *
      * @var string
@@ -80,39 +101,26 @@ class ModelGenerator extends Generator
     {
         parent::__construct($filesystem);
 
-
         $qualifiedNameParts = explode("/", $qualifiedName);
-
-        $defaultConnection = config('database.default');
 
         $this->parameters = $this->loadParameters(config('generators.model_parameter_path'));
         $this->connector = $connector;
-        $this->subNamespace = implode('\\', array_slice($qualifiedNameParts, 0, count($qualifiedNameParts) - 1));
-        $this->className = array_slice($qualifiedNameParts, -1, 1)[0];
-        $this->setTargetFilePath(config('generators.model_target_path'), $qualifiedName);
-        $this->qualifiedName = "Models\\{$this->subNamespace}\\{$this->className}";
+        $this->setNamespace($qualifiedNameParts);
+        $this->setClassName($qualifiedNameParts);
+        $this->setTargetFilePath(config('generators.model_target_path'), $qualifiedNameParts);
+
+        $this->qualifiedName = "Models\\{$this->namespace}\\{$this->className}";
         $this->usesSoftDeletes = config('generators.defaults.uses_soft_deletes');
         $this->usesSequence = is_a($this->connector, "Bronco\LaravelGeneratorsConnectors\OracleConnector");
 
-        if ($table) {
-            $tableParts = explode('.', $table);
-
-            if (count($tableParts) == 2) {
-                $this->databaseName = $tableParts[0];
-                $this->tableName = $tableParts[1];
-            } else {
-                $this->databaseName = config("database.connections.$defaultConnection.database");
-                $this->tableName = $tableParts[0];
-            }
-        } else {
-            $this->tableName = snake_case($this->className).'s';
-            $this->databaseName = config("database.connections.$defaultConnection.database");
-        }
+        $this->setTableName($table);
+        $this->setDatabaseName($table);
 
         $this->qualifiedTableName = "{$this->databaseName}.{$this->tableName}";
 
         try {
-            $this->primaryKey = strtolower($this->connector->getPrimaryKeys($this->databaseName, $this->tableName)[0]->column_name);
+            $this->primaryKey = $this->connector->getPrimaryKeys($this->databaseName, $this->tableName)[0];
+            $this->primaryKeyName = strtolower($this->primaryKey->column_name);
         } catch (\ErrorException $e) {
             throw new \RuntimeException("Could not find primary keys in '{$this->qualifiedTableName}'");
         }
@@ -120,12 +128,9 @@ class ModelGenerator extends Generator
         try {
             $this->allColumns = $this->connector->getColumns($this->databaseName, $this->tableName);
             $nonPrimaryKeyFilter = function ($column) {
-                return (strtolower($column->column_name) != strtolower($this->primaryKey));
+                return (strtolower($column->column_name) != strtolower($this->primaryKeyName));
             };
-            $this->nonPrimaryKeyColumns = array_filter(
-                $this->connector->getColumns($this->databaseName, $this->tableName),
-                $nonPrimaryKeyFilter
-            );
+            $this->nonPrimaryKeyColumns = array_filter($this->allColumns, $nonPrimaryKeyFilter);
         } catch (\ErrorException $e) {
             throw new \RuntimeException("Could not find columns in '{$this->qualifiedTableName}'");
         }
@@ -146,11 +151,11 @@ class ModelGenerator extends Generator
         $content = $this->filesystem->get(config('generators.model_template_path'));
 
         $this->replaceTag('app_namespace', app()->getNamespace(), $content)
-             ->replaceTag('sub_namespace', $this->subNamespace, $content)
-             ->replaceTag('class_name', $this->className, $content)
-             ->replaceTag('database_name', $this->databaseName, $content)
-             ->replaceTag('table_name', $this->tableName, $content)
-             ->replaceTag('primary_key', $this->primaryKey, $content)
+             ->replaceTag('namespace', $this->getNamespace(), $content)
+             ->replaceTag('class_name', $this->getClassName(), $content)
+             ->replaceTag('database_name', $this->getDatabaseName(), $content)
+             ->replaceTag('table_name', $this->getTableName(), $content)
+             ->replaceTag('primary_key', $this->getPrimaryKeyName(), $content)
              ->compileSequenceName($content)
              ->compileDateColumns($content)
              ->compileSeachParameters($content)
@@ -310,10 +315,16 @@ class ModelGenerator extends Generator
         return $this->targetFilePath;
     }
 
-    public function setTargetFilePath($path, $qualifiedName)
+    /**
+     * Sets the full path where the model will be stored, including namespaces,
+     * file name and extension.
+     *
+     * @param string $path Base folder where models are stored
+     * @param array $qualifiedNameParts Qualified name, with namespaces and class
+     * name like ["Namespace", "Subnamespace", "Model"]
+     */
+    public function setTargetFilePath($path, $qualifiedNameParts)
     {
-        $qualifiedNameParts = explode("/", $qualifiedName);
-
         if (count($qualifiedNameParts) < 2) {
             throw new \InvalidArgumentException('You must inform the class\'s qualified name');
         }
@@ -322,16 +333,42 @@ class ModelGenerator extends Generator
             throw new \InvalidArgumentException("Invalid class name: {$this->getClassName()}");
         }
 
-        if ($this->filesystem->isDirectory($path)) {
-            $this->targetFilePath = $path . implode('/', array_slice($qualifiedNameParts, 0, count($qualifiedNameParts) - 1)) . "/{$this->getClassName()}.php";
-        } else {
-            $this->targetFilePath = $path;
-        }
+        $this->targetFilePath = $path . implode('/', array_slice($qualifiedNameParts, 0, count($qualifiedNameParts) - 1)) . "/{$this->getClassName()}.php";
+    }
+
+    /**
+     * Sets the class name, based on the qualified name
+     *
+     * @param array $qualifiedNameParts Class's qualified name, with namespaces
+     */
+    public function setClassName($qualifiedNameParts)
+    {
+        $this->className = array_slice($qualifiedNameParts, -1, 1)[0];
     }
 
     public function getClassName()
     {
         return $this->className;
+    }
+
+    public function getConnector()
+    {
+        return $this->connector;
+    }
+
+    public function setConnector($connector)
+    {
+        $this->connector = $connector;
+    }
+
+    public function setNamespace($qualifiedNameParts)
+    {
+        $this->namespace = implode('\\', array_slice($qualifiedNameParts, 0, count($qualifiedNameParts) - 1));
+    }
+
+    public function getNamespace()
+    {
+        return $this->namespace;
     }
 
     public function getSequenceName()
@@ -358,4 +395,69 @@ class ModelGenerator extends Generator
     {
         $this->usesSoftDeletes = $value;
     }
+
+    public function setTableName($table)
+    {
+        if ($table) {
+            $tableParts = explode('.', $table);
+
+            if (count($tableParts) == 2) {
+                $this->tableName = $tableParts[1];
+            } else {
+                $this->tableName = $tableParts[0];
+            }
+        } else {
+            $this->tableName = snake_case($this->className).'s';
+        }
+    }
+
+    public function getTableName()
+    {
+        return $this->tableName;
+    }
+
+    public function setDatabaseName($table)
+    {
+        if ($table) {
+            $tableParts = explode('.', $table);
+
+            if (count($tableParts) == 2) {
+                $this->databaseName = $tableParts[0];
+            } else {
+                $this->databaseName = $this->getConnector()->getDatabase();
+            }
+        } else {
+            $this->databaseName = $this->getConnector()->getDatabase();
+        }
+    }
+
+    public function getDatabaseName()
+    {
+        return $this->databaseName;
+    }
+
+    public function getPrimaryKeyName()
+    {
+        return $this->primaryKeyName;
+    }
+
+    public function setPrimaryKeyName($primaryKeyName)
+    {
+        $this->primaryKeyName = $primaryKeyName;
+
+        return $this;
+    }
+
+    public function getPrimaryKey()
+    {
+        return $this->primaryKey;
+    }
+
+    public function setPrimaryKey(\Illuminate\Database\Eloquent\Model $primaryKey)
+    {
+        $this->primaryKey = $primaryKey;
+
+        return $this;
+    }
+
 }
