@@ -2,7 +2,7 @@
 
 {{use_soft_deletes_definition}}
 
-use Jackhammer\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Model;
 
 class {{class_name}} extends Model
 {
