@@ -91,6 +91,20 @@ class ModelGenerator extends Generator
     protected $namespace;
 
     /**
+     * All collumns of a given table
+     *
+     * @var array
+     */
+    protected $allColumns;
+
+    /**
+     * All collumns of a given table, except primary keys
+     *
+     * @var array
+     */
+    protected $nonPrimaryKeyColumns;
+
+    /**
      * Class's file path
      *
      * @var string
@@ -116,24 +130,27 @@ class ModelGenerator extends Generator
         $this->setTableName($table);
         $this->setDatabaseName($table);
 
-        $this->qualifiedTableName = "{$this->databaseName}.{$this->tableName}";
+        $this->qualifiedTableName = "{$this->getDatabaseName()}.{$this->getTableName()}";
 
-        try {
-            $this->primaryKey = $this->connector->getPrimaryKeys($this->databaseName, $this->tableName)[0];
-            $this->primaryKeyName = strtolower($this->primaryKey->column_name);
-        } catch (\ErrorException $e) {
-            throw new \RuntimeException("Could not find primary keys in '{$this->qualifiedTableName}'");
+        $primaryKeys = $this->connector->getPrimaryKeys($this->getDatabaseName(), $this->getTableName());
+
+        if (!isset($primaryKeys[0])) {
+            throw new \InvalidArgumentException("Could not find primary keys in '{$this->qualifiedTableName}'");
         }
 
-        try {
-            $this->allColumns = $this->connector->getColumns($this->databaseName, $this->tableName);
-            $nonPrimaryKeyFilter = function ($column) {
-                return (strtolower($column->column_name) != strtolower($this->primaryKeyName));
-            };
-            $this->nonPrimaryKeyColumns = array_filter($this->allColumns, $nonPrimaryKeyFilter);
-        } catch (\ErrorException $e) {
-            throw new \RuntimeException("Could not find columns in '{$this->qualifiedTableName}'");
+        $this->primaryKey = $primaryKeys[0];
+        $this->primaryKeyName = strtolower($this->primaryKey->column_name);
+
+        $this->allColumns = $this->connector->getColumns($this->getDatabaseName(), $this->getTableName());
+
+        if (empty($this->allColumns)) {
+            throw new \InvalidArgumentException("Could not find columns in '{$this->qualifiedTableName}'");
         }
+
+        $nonPrimaryKeyFilter = function ($column) {
+            return (strtolower($column->column_name) != strtolower($this->getPrimaryKeyName()));
+        };
+        $this->nonPrimaryKeyColumns = array_filter($this->getAllColumns(), $nonPrimaryKeyFilter);
     }
 
     public function make()
@@ -453,9 +470,45 @@ class ModelGenerator extends Generator
         return $this->primaryKey;
     }
 
-    public function setPrimaryKey(\Illuminate\Database\Eloquent\Model $primaryKey)
+    public function setPrimaryKey($primaryKey)
     {
         $this->primaryKey = $primaryKey;
+
+        return $this;
+    }
+
+    /**
+     * Get the value of All collumns of a given table
+     *
+     * @return array
+     */
+    public function getAllColumns()
+    {
+        return $this->allColumns;
+    }
+
+    /**
+     * Set the value of All collumns of a given table
+     *
+     * @param array allColumns
+     *
+     * @return self
+     */
+    public function setAllColumns(array $allColumns)
+    {
+        $this->allColumns = $allColumns;
+
+        return $this;
+    }
+
+    public function getNonPrimaryKeyColumns()
+    {
+        return $this->nonPrimaryKeyColumns;
+    }
+
+    public function setNonPrimaryKeyColumns(array $nonPrimaryKeyColumns)
+    {
+        $this->nonPrimaryKeyColumns = $nonPrimaryKeyColumns;
 
         return $this;
     }
