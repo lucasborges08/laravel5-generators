@@ -30,9 +30,9 @@ return [
     ],
 
     'patterns' => [
-        'created_at_column' => "/dtcadastro/i",
-        'updated_at_column' => "/dtmodificacao/i",
-        'deleted_at_column' => "/dtexclusao/i",
+        'created_at_column' => "/created_at/i",
+        'updated_at_column' => "/updated_at/i",
+        'deleted_at_column' => "/deleted_at/i",
         'sequence_name' => '/(\w{1,3})/',
 
         'dataTypes' => [
