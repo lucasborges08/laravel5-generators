@@ -5,11 +5,11 @@ use DB;
 class MySQLConnector implements Connector
 {
     private static $instance;
-    private $connection;
+    private $connectionName;
 
     public function __construct()
     {
-        $this->connection = 'mysql';
+        $this->connectionName = 'mysql';
     }
 
     public static function getInstance()
@@ -37,7 +37,8 @@ class MySQLConnector implements Connector
 
         return $query
             ->orderBy('column_name')
-            ->get();
+            ->get()
+            ->toArray();
     }
 
     public function getPrimaryKeys($databaseName, $tableName)
@@ -54,7 +55,8 @@ class MySQLConnector implements Connector
             ->whereRaw("lower(table_name) = '" . strtolower($tableName) . "'")
             ->where("COLUMN_KEY", "PRI")
             ->orderBy('column_name')
-            ->get();
+            ->get()
+            ->toArray();
     }
 
     public function getForeignKeys($databaseName, $tableName)
@@ -77,57 +79,58 @@ class MySQLConnector implements Connector
             ->whereRaw("lower(col.table_name) = '" . strtolower($tableName) . "'")
             ->whereNotNull('usa.referenced_table_name')
             ->orderBy('col.column_name')
-            ->get();
+            ->get()
+            ->toArray();
     }
 
     public function getHost()
     {
-        return config("database.connections.{$this->getConnection()}.host");
+        return config("database.connections.{$this->getConnectionName()}.host");
     }
 
     public function setHost($host)
     {
-        config(["database.connections.{$this->getConnection()}.host" => $host]);
+        config(["database.connections.{$this->getConnectionName()}.host" => $host]);
     }
 
     public function getDatabase()
     {
-        return config("database.connections.{$this->getConnection()}.database");
+        return config("database.connections.{$this->getConnectionName()}.database");
     }
 
     public function setDatabase($database)
     {
-        config(["database.connections.{$this->getConnection()}.database" => $database]);
+        config(["database.connections.{$this->getConnectionName()}.database" => $database]);
     }
 
     public function getUsername()
     {
-        return config("database.connections.{$this->getConnection()}.username");
+        return config("database.connections.{$this->getConnectionName()}.username");
     }
 
     public function setUsername($username)
     {
-        config(["database.connections.{$this->getConnection()}.username" => $username]);
+        config(["database.connections.{$this->getConnectionName()}.username" => $username]);
     }
 
     public function getPassword()
     {
-        return config("database.connections.{$this->getConnection()}.password");
+        return config("database.connections.{$this->getConnectionName()}.password");
     }
 
     public function setPassword($password)
     {
-        config(["database.connections.{$this->getConnection()}.password" => $password]);
+        config(["database.connections.{$this->getConnectionName()}.password" => $password]);
     }
 
-    public function getConnection()
+    public function getConnectionName()
     {
-        return $this->connection;
+        return $this->connectionName;
     }
 
-    public function setConnection($connection)
+    public function setConnectionName($connectionName)
     {
-        $this->connection = $connection;
+        $this->connectionName = $connectionName;
     }
 
 }
