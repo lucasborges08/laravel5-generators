@@ -129,13 +129,12 @@ class ModelGenerator extends Generator
 
         $this->setTableName($table);
         $this->setDatabaseName($table);
-
-        $this->qualifiedTableName = "{$this->getDatabaseName()}.{$this->getTableName()}";
+        $this->setQualifiedTableName($this->getDatabaseName(), $this->getTableName());
 
         $primaryKeys = $this->connector->getPrimaryKeys($this->getDatabaseName(), $this->getTableName());
 
         if (!isset($primaryKeys[0])) {
-            throw new \InvalidArgumentException("Could not find primary keys in '{$this->qualifiedTableName}'");
+            throw new \InvalidArgumentException("Could not find primary keys in '{$this->getQualifiedTableName()}'");
         }
 
         $this->primaryKey = $primaryKeys[0];
@@ -144,7 +143,7 @@ class ModelGenerator extends Generator
         $this->allColumns = $this->connector->getColumns($this->getDatabaseName(), $this->getTableName());
 
         if (empty($this->allColumns)) {
-            throw new \InvalidArgumentException("Could not find columns in '{$this->qualifiedTableName}'");
+            throw new \InvalidArgumentException("Could not find columns in '{$this->getQualifiedTableName()}'");
         }
 
         $nonPrimaryKeyFilter = function ($column) {
@@ -184,7 +183,7 @@ class ModelGenerator extends Generator
 
     public function compileDateColumns(&$content)
     {
-        $dateColumns = $this->connector->getColumns($this->databaseName, $this->tableName, 'date');
+        $dateColumns = $this->connector->getColumns($this->getDatabaseName(), $this->getTableName(), 'date');
         $columnsFormatted = '';
         foreach ($dateColumns as $column) {
             $columnsFormatted .= "'" . strtolower($column->column_name) ."', ";
@@ -219,7 +218,7 @@ class ModelGenerator extends Generator
         };
 
         // Filter columns that matches $deletedAtFilter
-        $deletedAtColumns = array_filter($this->allColumns, $deletedAtFilter);
+        $deletedAtColumns = array_filter($this->getAllColumns(), $deletedAtFilter);
         if ($deletedAtColumns) {
             // Get the array's first position
             $deletedAtColumn = reset($deletedAtColumns);
@@ -245,7 +244,7 @@ class ModelGenerator extends Generator
         };
 
         // Filter columns that matches $createdAtFilter
-        $createdAtColumns = array_filter($this->allColumns, $createdAtFilter);
+        $createdAtColumns = array_filter($this->getAllColumns(), $createdAtFilter);
         if ($createdAtColumns) {
             // Get the array's first position
             $createdAtColumn = reset($createdAtColumns);
@@ -271,11 +270,10 @@ class ModelGenerator extends Generator
         };
 
         // Filter columns that matches $updatedAtFilter
-        $updatedAtColumns = array_filter($this->allColumns, $updatedAtFilter);
+        $updatedAtColumns = array_filter($this->getAllColumns(), $updatedAtFilter);
         if ($updatedAtColumns) {
             // Get the array's first position
             $updatedAtColumn = reset($updatedAtColumns);
-
 
             $updatedAtConst = $this->parameters['updated_at_const'];
             $this->replaceTag('updated_at_column', strtolower($updatedAtColumn->column_name), $updatedAtConst)
@@ -310,7 +308,8 @@ class ModelGenerator extends Generator
     {
         $parametersFormatted = '';
         $parameterFormatCollection = $this->parameters['search_parameters'];
-        foreach ($this->allColumns as $column) {
+        $allColumns = $this->getAllColumns();
+        foreach ($allColumns as $column) {
             foreach ($this->parameters['patterns']['dataTypes'] as $key => $pattern) {
                 if (preg_match($pattern, $column->data_type)) {
                     $parameterFormatName = $this->parameters['searchParametersMapping'][$key];
@@ -509,6 +508,18 @@ class ModelGenerator extends Generator
     public function setNonPrimaryKeyColumns(array $nonPrimaryKeyColumns)
     {
         $this->nonPrimaryKeyColumns = $nonPrimaryKeyColumns;
+
+        return $this;
+    }
+
+    public function getQualifiedTableName()
+    {
+        return $this->qualifiedTableName;
+    }
+
+    public function setQualifiedTableName($databaseName, $tableName)
+    {
+        $this->qualifiedTableName = "{$databaseName}.{$tableName}";
 
         return $this;
     }
