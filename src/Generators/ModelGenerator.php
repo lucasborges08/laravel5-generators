@@ -183,7 +183,16 @@ class ModelGenerator extends Generator
 
     public function compileDateColumns(&$content)
     {
-        $dateColumns = $this->connector->getColumns($this->getDatabaseName(), $this->getTableName(), 'date');
+        $dateColumnsFilter = function($column) {
+            if (preg_match('/date|timestamp/i', $column->data_type)) {
+                return true;
+            }
+
+            return false;
+        };
+
+        $dateColumns = array_filter($this->getAllColumns(), $dateColumnsFilter);
+
         $columnsFormatted = '';
         foreach ($dateColumns as $column) {
             $columnsFormatted .= "'" . strtolower($column->column_name) ."', ";
@@ -212,9 +221,9 @@ class ModelGenerator extends Generator
             if (preg_match('/date|timestamp/i', $column->data_type)
              && preg_match($this->parameters['patterns']['deleted_at_column'], $column->column_name)) {
                 return true;
-            } else {
-                return false;
             }
+
+            return false;
         };
 
         // Filter columns that matches $deletedAtFilter
@@ -238,9 +247,9 @@ class ModelGenerator extends Generator
         $createdAtFilter = function ($column) {
             if (preg_match('/date|timestamp/i', $column->data_type) && preg_match($this->parameters['patterns']['created_at_column'], $column->column_name)) {
                 return true;
-            } else {
-                return false;
             }
+
+            return false;
         };
 
         // Filter columns that matches $createdAtFilter
@@ -264,9 +273,9 @@ class ModelGenerator extends Generator
         $updatedAtFilter = function ($column) {
             if (preg_match('/date|timestamp/i', $column->data_type) && preg_match($this->parameters['patterns']['updated_at_column'], $column->column_name)) {
                 return true;
-            } else {
-                return false;
             }
+
+            return false;
         };
 
         // Filter columns that matches $updatedAtFilter
