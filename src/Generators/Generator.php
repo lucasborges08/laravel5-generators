@@ -1,15 +1,7 @@
 <?php
 namespace Bronco\LaravelGenerators\Generators;
 
-use Illuminate\Filesystem\Filesystem;
-
 abstract class Generator {
-    protected $filesystem;
-
-    public function __construct(Filesystem $filesystem) {
-        $this->filesystem = $filesystem;
-    }
-
     public function replaceTag($tag, $value, &$content)
     {
         $content = str_replace('{{' . $tag . '}}', $value, $content);

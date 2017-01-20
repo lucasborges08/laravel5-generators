@@ -2,10 +2,13 @@
 namespace Bronco\LaravelGenerators\Generators;
 
 use Illuminate\Filesystem\Filesystem;
+
 use Bronco\LaravelGenerators\Connectors\Connector;
 
 class ModelGenerator extends Generator
 {
+    use FileWriter;
+
     /**
      * Database connector used to generate the object
      *
@@ -59,7 +62,7 @@ class ModelGenerator extends Generator
      * Qualified table name, with database name preceded
      *
      * @var string
-     **/
+     */
     protected $qualifiedTableName;
 
     /**
@@ -105,18 +108,17 @@ class ModelGenerator extends Generator
     protected $nonPrimaryKeyColumns;
 
     /**
-     * Class's file path
-     *
-     * @var string
+     * Filesystem instance, used to get the stub content
+     * @var \Illuminate\Filesystem\Filesystem
      */
-    protected $targetFilePath;
+    private $filesystem;
 
-    public function __construct(Filesystem $filesystem, Connector $connector, $qualifiedName, $table)
+    public function __construct(Connector $connector, $qualifiedName, $table)
     {
-        parent::__construct($filesystem);
 
         $qualifiedNameParts = explode("/", $qualifiedName);
 
+        $this->filesystem = new Filesystem();
         $this->parameters = $this->loadParameters(config('generators.model_parameter_path'));
         $this->connector = $connector;
         $this->setNamespace($qualifiedNameParts);
@@ -154,12 +156,7 @@ class ModelGenerator extends Generator
 
     public function make()
     {
-        if (!$this->filesystem->exists(dirname($this->getTargetFilePath()))) {
-            $this->filesystem->makeDirectory(dirname($this->getTargetFilePath()), 0755, true);
-        }
-
-        $content = $this->compileTags();
-        $this->filesystem->put($this->getTargetFilePath(), $content);
+        $this->write($this->compileTags());
     }
 
     public function compileTags()
@@ -333,11 +330,6 @@ class ModelGenerator extends Generator
 
         $this->replaceTag('search_parameters', $parametersFormatted, $content);
         return $this;
-    }
-
-    public function getTargetFilePath()
-    {
-        return $this->targetFilePath;
     }
 
     /**
