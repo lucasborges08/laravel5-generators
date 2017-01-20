@@ -94,6 +94,13 @@ class ModelGenerator extends Generator
     protected $namespace;
 
     /**
+     * Application's namespace
+     *
+     * @var string
+     */
+    protected $appNamespace;
+
+    /**
      * All collumns of a given table
      *
      * @var array
@@ -125,13 +132,13 @@ class ModelGenerator extends Generator
         $this->setClassName($qualifiedNameParts);
         $this->setTargetFilePath(config('generators.model_target_path'), $qualifiedNameParts);
 
-        $this->qualifiedName = "Models\\{$this->namespace}\\{$this->className}";
-        $this->usesSoftDeletes = config('generators.defaults.uses_soft_deletes');
-        $this->usesSequence = is_a($this->connector, "Bronco\LaravelGeneratorsConnectors\OracleConnector");
-
+        $this->setQualifiedName(config('generators.models_sub_namespace') . "{$this->namespace}\\{$this->className}");
+        $this->setUsesSoftDeletes(config('generators.defaults.uses_soft_deletes'));
+        $this->setUsesSequence(is_a($this->connector, "Bronco\LaravelGeneratorsConnectors\OracleConnector"));
         $this->setTableName($table);
         $this->setDatabaseName($table);
         $this->setQualifiedTableName($this->getDatabaseName(), $this->getTableName());
+        $this->setAppNamespace(app()->getNamespace());
 
         $primaryKeys = $this->connector->getPrimaryKeys($this->getDatabaseName(), $this->getTableName());
 
@@ -163,7 +170,7 @@ class ModelGenerator extends Generator
     {
         $content = $this->filesystem->get(config('generators.model_template_path'));
 
-        $this->replaceTag('app_namespace', app()->getNamespace(), $content)
+        $this->replaceTag('app_namespace', $this->getAppNamespace(), $content)
              ->replaceTag('namespace', $this->getNamespace(), $content)
              ->replaceTag('class_name', $this->getClassName(), $content)
              ->replaceTag('database_name', $this->getDatabaseName(), $content)
@@ -330,6 +337,10 @@ class ModelGenerator extends Generator
 
         $this->replaceTag('search_parameters', $parametersFormatted, $content);
         return $this;
+    }
+
+    public function compileNamespace(&$content)
+    {
     }
 
     /**
@@ -521,6 +532,30 @@ class ModelGenerator extends Generator
     public function setQualifiedTableName($databaseName, $tableName)
     {
         $this->qualifiedTableName = "{$databaseName}.{$tableName}";
+
+        return $this;
+    }
+
+    public function getAppNamespace()
+    {
+        return $this->appNamespace;
+    }
+
+    public function setAppNamespace($appNamespace)
+    {
+        $this->appNamespace = $appNamespace;
+
+        return $this;
+    }
+
+    public function getQualifiedName()
+    {
+        return $this->qualifiedName;
+    }
+
+    public function setQualifiedName($qualifiedName)
+    {
+        $this->qualifiedName = $qualifiedName;
 
         return $this;
     }
