@@ -2,15 +2,48 @@
 namespace Bronco\LaravelGenerators\Generators;
 
 use Illuminate\Filesystem\Filesystem;
+
 use Bronco\LaravelGenerators\Connectors\Connector;
 
 class ControllerGenerator extends Generator {
+    use FileWriter;
 
+    /**
+     * Database connector used to generate the object
+     *
+     * @var \Bronco\LaravelGenerators\Connectors\Connector
+     */
     protected $connector;
+
+    /**
+     * Class name
+     *
+     * @var string
+     */
     protected $className;
-    protected $mainModel;
+
+    /**
+     * Main model class name
+     */
+    protected $mainModelName;
+
+    /**
+     * Main model class instance
+     *
+     * @var \Illuminate\Database\Eloquent\Model;
+     */
     protected $mainModelInstance;
+
+    /**
+     * Main model instance name
+     *
+     * @var string
+     */
     protected $mainModelInstanceName;
+
+    /**
+     * Main model qualified name, with namespaces
+     */
     protected $mainModelQualifiedName;
 
     /**
@@ -20,21 +53,54 @@ class ControllerGenerator extends Generator {
      */
     protected $qualifiedName;
 
-    protected $nonPrimaryKeyColumns;
-
     /**
-     * Class's file path
+     * Main model's primary key name
      *
      * @var string
      */
-    protected $filePath;
+    protected $mainModelPrimaryKeyName;
 
-    public function __construct(Filesystem $filesystem, Connector $connector, $qualifiedName, $mainModel)
+    /**
+     * Primary key column
+     *
+     * @var \Illuminate\Database\Eloquent\Model
+     */
+    protected $primaryKey;
+
+    /**
+     * All collumns of a given table, except primary keys
+     *
+     * @var array
+     */
+    protected $nonPrimaryKeyColumns;
+
+    /**
+     * Table name
+     *
+     * @var string
+     */
+    protected $tableName;
+
+    /**
+     * Database name
+     *
+     * @var string
+     */
+    protected $databaseName;
+
+    /**
+     * Qualified table name, with database name preceded
+     *
+     * @var string
+     */
+    protected $qualifiedTableName;
+
+    public function __construct(Connector $connector, $qualifiedName, $mainModelName)
     {
         parent::__construct($filesystem);
 
         $qualifiedNameParts = explode('/', $qualifiedName);
-        $mainModelParts = explode('/', $mainModel);
+        $mainModelNameParts = explode('/', $mainModelName);
 
         if (count($qualifiedNameParts) < 2)
             throw new \InvalidArgumentException('You must inform the class\'s qualified name');
@@ -44,17 +110,17 @@ class ControllerGenerator extends Generator {
         $this->parameters = $this->loadParameters(config('generators.controller_parameter_path'));
         $this->modelParameters = $this->loadParameters(config('generators.model_parameter_path'));
         $this->connector = $connector;
-        $this->mainModelName = array_slice($mainModelParts, -1, 1)[0];
+        $this->mainModelName = array_slice($mainModelNameParts, -1, 1)[0];
         $this->subNamespace = implode('\\', array_slice($qualifiedNameParts, 0, count($qualifiedNameParts) - 1));
         $this->className = array_slice($qualifiedNameParts, -1, 1)[0];
         $this->filePath = config('generators.controller_target_path') . implode('/', array_slice($qualifiedNameParts, 0, count($qualifiedNameParts) - 1)) . "/{$this->className}.php";
         $this->qualifiedName = "Http\\Controllers\\{$this->subNamespace}\\{$this->className}";
 
         $modelsSubNamespace = app()->getNamespace() . config('generators.defaults.models_sub_namespace');
-        $this->mainModelQualifiedName = str_replace('/', '\\', "$modelsSubNamespace$mainModel");
+        $this->mainModelQualifiedName = str_replace('/', '\\', "$modelsSubNamespace$mainModelName");
         $this->mainModelInstanceName = lcfirst(str_replace('Model', '', $this->mainModelName));
         $this->mainModelInstance = new $this->mainModelQualifiedName();
-        $this->primaryKey = $this->mainModelInstance->primaryKey;
+        $this->mainModelPrimaryKeyName = $this->mainModelInstance->primaryKey;
         $tableParts = explode('.', $this->mainModelInstance->table);
 
         if (!$this->mainModelInstance->table) {
@@ -134,8 +200,43 @@ class ControllerGenerator extends Generator {
     }
 
 
-    public function getFilePath()
+    public function setTableName($table)
     {
-        return $this->filePath;
+        if ($table) {
+            $tableParts = explode('.', $table);
+
+            if (count($tableParts) == 2) {
+                $this->tableName = $tableParts[1];
+            } else {
+                $this->tableName = $tableParts[0];
+            }
+        } else {
+            $this->tableName = snake_case($this->className).'s';
+        }
+    }
+
+    public function getTableName()
+    {
+        return $this->tableName;
+    }
+
+    public function setDatabaseName($table)
+    {
+        if ($table) {
+            $tableParts = explode('.', $table);
+
+            if (count($tableParts) == 2) {
+                $this->databaseName = $tableParts[0];
+            } else {
+                $this->databaseName = $this->getConnector()->getDatabase();
+            }
+        } else {
+            $this->databaseName = $this->getConnector()->getDatabase();
+        }
+    }
+
+    public function getDatabaseName()
+    {
+        return $this->databaseName;
     }
 }
