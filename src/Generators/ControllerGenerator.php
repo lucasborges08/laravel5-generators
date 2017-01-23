@@ -28,9 +28,16 @@ class ControllerGenerator extends Generator {
     protected $mainModelName;
 
     /**
+     * Model namespace
+     *
+     * @var string
+     */
+    protected $modelNamespace;
+
+    /**
      * Main model class instance
      *
-     * @var \Illuminate\Database\Eloquent\Model;
+     * @var \Illuminate\Database\Eloquent\Model
      */
     protected $mainModelInstance;
 
@@ -95,78 +102,72 @@ class ControllerGenerator extends Generator {
      */
     protected $qualifiedTableName;
 
+    protected $parameters;
+    protected $modelParameters;
+
+    /**
+     * Filesystem instance, used to get the stub content
+     * @var \Illuminate\Filesystem\Filesystem
+     */
+    private $filesystem;
+
+
     public function __construct(Connector $connector, $qualifiedName, $mainModelName)
     {
-        parent::__construct($filesystem);
+        $this->connector = $connector;
+        $this->filesystem = new Filesystem();
 
         $qualifiedNameParts = explode('/', $qualifiedName);
-        $mainModelNameParts = explode('/', $mainModelName);
-
-        if (count($qualifiedNameParts) < 2)
-            throw new \InvalidArgumentException('You must inform the class\'s qualified name');
-
-        $defaultConnection = config('database.default');
 
         $this->parameters = $this->loadParameters(config('generators.controller_parameter_path'));
         $this->modelParameters = $this->loadParameters(config('generators.model_parameter_path'));
-        $this->connector = $connector;
-        $this->mainModelName = array_slice($mainModelNameParts, -1, 1)[0];
-        $this->subNamespace = implode('\\', array_slice($qualifiedNameParts, 0, count($qualifiedNameParts) - 1));
-        $this->className = array_slice($qualifiedNameParts, -1, 1)[0];
-        $this->filePath = config('generators.controller_target_path') . implode('/', array_slice($qualifiedNameParts, 0, count($qualifiedNameParts) - 1)) . "/{$this->className}.php";
-        $this->qualifiedName = "Http\\Controllers\\{$this->subNamespace}\\{$this->className}";
 
-        $modelsSubNamespace = app()->getNamespace() . config('generators.defaults.models_sub_namespace');
-        $this->mainModelQualifiedName = str_replace('/', '\\', "$modelsSubNamespace$mainModelName");
-        $this->mainModelInstanceName = lcfirst(str_replace('Model', '', $this->mainModelName));
-        $this->mainModelInstance = new $this->mainModelQualifiedName();
+        $this->setNamespace($qualifiedNameParts);
+        $this->setClassName($qualifiedNameParts);
+        $this->setTargetFilePath(config('generators.controller_target_path'), $qualifiedName);
+        $this->setQualifiedName(config('generators.controller_sub_namespace') . "{$this->getNamespace()}\\{$this->getClassName()}");
+        $this->setMainModelName($mainModelName);
+
+        $this->setAppNamespace(app()->getNamespace());
+        $this->setModelNamespace($this->getAppNamespace() . config('generators.defaults.models_sub_namespace'));
+        $this->setMainModelQualifiedName($mainModelName);
+
+        $this->setMainModelInstanceName($this->getMainModelName());
+        $this->setMainModelInstance($this->getMainModelQualifiedName());
+
         $this->mainModelPrimaryKeyName = $this->mainModelInstance->primaryKey;
-        $tableParts = explode('.', $this->mainModelInstance->table);
 
-        if (!$this->mainModelInstance->table) {
-            throw new \RuntimeException("Could not find the 'table' property in '{$this->mainModelQualifiedName}'. Ensure that this property is public." );
+        $this->setTableName($this->mainModelInstance->table);
+        $this->setDatabaseName($this->mainModelInstance->table);
+        $this->setQualifiedTableName($this->getDatabaseName(), $this->getTableName());
+
+        $this->allColumns = $this->connector->getColumns($this->databaseName, $this->tableName);
+
+        if (!$this->allColumns) {
+            throw new \InvalidArgumentException("Could not find columns in '{$this->getQualifiedTableName()}'");
         }
 
-        if (count($tableParts) == 2) {
-            $this->databaseName = $tableParts[0];
-            $this->tableName = $tableParts[1];
-        } else {
-            $this->databaseName = config("database.connections.$defaultConnection.database");
-            $this->tableName = $tableParts[0];
-        }
-
-        $this->qualifiedTableName = "{$this->databaseName}.{$this->tableName}";
-
-        try {
-            $this->allColumns = $this->connector->getColumns($this->databaseName, $this->tableName);
-            $nonPrimaryKeyFilter = function($column) {
-                return (strtolower($column->column_name) != strtolower($this->mainModelInstance->primaryKey));
-            };
-            $this->nonPrimaryKeyColumns = array_filter(
-                $this->connector->getColumns($this->databaseName, $this->tableName),
-                $nonPrimaryKeyFilter
-            );
-        } catch (\ErrorException $e) {
-            throw new \RuntimeException("Could not find columns in '{$this->qualifiedTableName}'" );
-        }
+        $nonPrimaryKeyFilter = function($column) {
+            return (strtolower($column->column_name) != strtolower($this->mainModelInstance->primaryKey));
+        };
+        $this->nonPrimaryKeyColumns = array_filter(
+            $this->connector->getColumns($this->databaseName, $this->tableName),
+            $nonPrimaryKeyFilter
+        );
     }
 
     public function make()
     {
-        if (!$this->filesystem->exists(dirname($this->filePath)))
-            $this->filesystem->makeDirectory(dirname($this->filePath), 0755, true);
-
-        $content = $this->compileTags();
-        $this->filesystem->put($this->filePath, $content);
+        $this->write($this->compileTags());
     }
 
     public function compileTags()
     {
         $content = $this->filesystem->get(config('generators.controller_template_path'));
 
-        $this->replaceTag('app_namespace', app()->getNamespace(), $content)
-             ->replaceTag('sub_namespace', $this->subNamespace, $content)
-             ->replaceTag('model_sub_namespace', config('generators.defaults.models_sub_namespace'), $content)
+        $this->replaceTag('app_namespace', $this->getAppNamespace(), $content)
+             ->replaceTag('namespace', $this->getNamespace(), $content)
+             ->replaceTag('model_sub_namespace', $this->getModelNamespace(), $content)
              ->replaceTag('class_name', $this->className, $content)
              ->replaceTag('model_name', $this->mainModelName, $content)
              ->replaceTag('model_qualified_name', $this->mainModelQualifiedName, $content)
@@ -199,9 +200,25 @@ class ControllerGenerator extends Generator {
         return $this;
     }
 
+    public function getMainModelName()
+    {
+        return $this->mainModelName;
+    }
+
+    public function setMainModelName($mainModelName)
+    {
+        $mainModelNameParts = explode('/', $mainModelName);
+        $this->mainModelName = array_slice($mainModelNameParts, -1, 1)[0];
+
+        return $this;
+    }
 
     public function setTableName($table)
     {
+        if (!$this->getMainModelInstance()->table) {
+            throw new \RuntimeException("Could not find the 'table' property in '{$this->mainModelQualifiedName}'. Ensure that this property is public." );
+        }
+
         if ($table) {
             $tableParts = explode('.', $table);
 
@@ -222,6 +239,10 @@ class ControllerGenerator extends Generator {
 
     public function setDatabaseName($table)
     {
+        if (!$this->getMainModelInstance()->table) {
+            throw new \RuntimeException("Could not find the 'table' property in '{$this->mainModelQualifiedName}'. Ensure that this property is public." );
+        }
+
         if ($table) {
             $tableParts = explode('.', $table);
 
@@ -239,4 +260,170 @@ class ControllerGenerator extends Generator {
     {
         return $this->databaseName;
     }
+
+    public function getAllColumns()
+    {
+        return $this->allColumns;
+    }
+
+    public function setAllColumns(array $allColumns)
+    {
+        $this->allColumns = $allColumns;
+
+        return $this;
+    }
+
+    public function getNonPrimaryKeyColumns()
+    {
+        return $this->nonPrimaryKeyColumns;
+    }
+
+    public function setNonPrimaryKeyColumns(array $nonPrimaryKeyColumns)
+    {
+        $this->nonPrimaryKeyColumns = $nonPrimaryKeyColumns;
+
+        return $this;
+    }
+
+    public function getQualifiedTableName()
+    {
+        return $this->qualifiedTableName;
+    }
+
+    public function setQualifiedTableName($databaseName, $tableName)
+    {
+        $this->qualifiedTableName = "{$databaseName}.{$tableName}";
+
+        return $this;
+    }
+
+    public function getAppNamespace()
+    {
+        return $this->appNamespace;
+    }
+
+    public function setAppNamespace($appNamespace)
+    {
+        $this->appNamespace = $appNamespace;
+
+        return $this;
+    }
+
+    public function getQualifiedName()
+    {
+        return $this->qualifiedName;
+    }
+
+    public function setQualifiedName($qualifiedName)
+    {
+        $this->qualifiedName = $qualifiedName;
+
+        return $this;
+    }
+
+    public function setClassName($qualifiedNameParts)
+    {
+        $this->className = array_slice($qualifiedNameParts, -1, 1)[0];
+    }
+
+    public function getClassName()
+    {
+        return $this->className;
+    }
+
+    public function getConnector()
+    {
+        return $this->connector;
+    }
+
+    public function setConnector($connector)
+    {
+        $this->connector = $connector;
+    }
+
+    public function setNamespace($qualifiedNameParts)
+    {
+        $this->namespace = implode('\\', array_slice($qualifiedNameParts, 0, count($qualifiedNameParts) - 1));
+    }
+
+    public function getNamespace()
+    {
+        return $this->namespace;
+    }
+
+
+    public function getMainModelInstance()
+    {
+        return $this->mainModelInstance;
+    }
+
+    public function setMainModelInstance($mainModelQualifiedName)
+    {
+        $this->mainModelInstance = new $mainModelQualifiedName();
+
+        return $this;
+    }
+
+    public function getMainModelInstanceName()
+    {
+        return $this->mainModelInstanceName;
+    }
+
+    public function setMainModelInstanceName($mainModelName)
+    {
+        $this->mainModelInstanceName = lcfirst(str_replace('Model', '', $this->mainModelName));
+
+        return $this;
+    }
+
+    public function getMainModelQualifiedName()
+    {
+        return $this->mainModelQualifiedName;
+    }
+
+    public function setMainModelQualifiedName($mainModelName)
+    {
+        $mainModelNameParts = explode('/', $mainModelName);
+        $subnamespace = implode('/', array_slice($mainModelNameParts, 0, count($mainModelNameParts) - 1));
+        $this->mainModelQualifiedName = str_replace('/', '\\', "{$this->getModelNamespace()}{$mainModelName}");
+
+        return $this;
+    }
+
+    public function getModelNamespace()
+    {
+        return $this->modelNamespace;
+    }
+
+    public function setModelNamespace($modelNamespace)
+    {
+        $this->modelNamespace = $modelNamespace;
+
+        return $this;
+    }
+
+    /**
+     * Sets the full path where the model will be stored, including namespaces,
+     * file name and extension.
+     *
+     * @param string $path Base folder where models are stored
+     * @param array $qualifiedName Qualified name, with namespaces and class
+     * name like "Namespace/Subnamespace/Model" (with slashes, not backslashes)
+     */
+    public function setTargetFilePath($path, $qualifiedName)
+    {
+        $qualifiedNameParts = explode('/', $qualifiedName);
+
+        if (count($qualifiedNameParts) < 2) {
+            throw new \InvalidArgumentException('You must inform the class\'s qualified name');
+        }
+
+        if (!$this->getClassName()) {
+            throw new \InvalidArgumentException("Invalid class name: {$this->getClassName()}");
+        }
+
+        $this->targetFilePath = $path . implode('/', array_slice($qualifiedNameParts, 0, count($qualifiedNameParts) - 1)) . "/{$this->getClassName()}.php";
+    }
+
+
 }
