@@ -21,7 +21,7 @@ class MySQLConnector implements Connector
 
     public function getColumns($databaseName, $tableName, $type = null)
     {
-        $query = DB::table('information_schema.columns')
+        return DB::table('information_schema.columns')
             ->select(
                 'column_name',
                 'data_type',
@@ -30,15 +30,9 @@ class MySQLConnector implements Connector
                 'character_maximum_length',
                 'is_nullable')
             ->whereRaw("lower(table_schema) = '" . strtolower($databaseName) . "'")
-            ->whereRaw("lower(table_name) = '" . strtolower($tableName) . "'");
-
-        if ($type)
-            $query->whereRaw("data_type like '$type%'");
-
-        return $query
+            ->whereRaw("lower(table_name) = '" . strtolower($tableName) . "'")
             ->orderBy('column_name')
-            ->get()
-            ->toArray();
+            ->get();
     }
 
     public function getPrimaryKeys($databaseName, $tableName)
@@ -55,8 +49,7 @@ class MySQLConnector implements Connector
             ->whereRaw("lower(table_name) = '" . strtolower($tableName) . "'")
             ->where("COLUMN_KEY", "PRI")
             ->orderBy('column_name')
-            ->get()
-            ->toArray();
+            ->get();
     }
 
     public function getForeignKeys($databaseName, $tableName)
@@ -79,8 +72,7 @@ class MySQLConnector implements Connector
             ->whereRaw("lower(col.table_name) = '" . strtolower($tableName) . "'")
             ->whereNotNull('usa.referenced_table_name')
             ->orderBy('col.column_name')
-            ->get()
-            ->toArray();
+            ->get();
     }
 
     public function getHost()
