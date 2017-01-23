@@ -9,6 +9,7 @@ return [
     'defaults' => [
         'uses_soft_deletes' => false,
         'models_sub_namespace' => 'Models\\',
+        'controller_sub_namespace' => 'Http\\Controllers\\',
     ],
 
     /*

@@ -19,11 +19,6 @@ class {{class_name}} extends Model
     {{updated_at_const}}
     {{deleted_at_const}}
 
-    /**
-     * Exibe registros que casam com os parâmetros fornecidos.
-     *
-     * @return array
-     */
     public function search()
     {
         $result = self::where(function($query) {
