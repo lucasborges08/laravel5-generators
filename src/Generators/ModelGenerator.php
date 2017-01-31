@@ -1,5 +1,4 @@
-<?php
-namespace Bronco\LaravelGenerators\Generators;
+<?php namespace Bronco\LaravelGenerators\Generators;
 
 use Illuminate\Filesystem\Filesystem;
 

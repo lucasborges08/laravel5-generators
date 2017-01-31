@@ -1,5 +1,4 @@
-<?php
-namespace Bronco\LaravelGenerators\Generators;
+<?php namespace Bronco\LaravelGenerators\Generators;
 
 use Illuminate\Filesystem\Filesystem;
 
@@ -117,13 +116,11 @@ class ControllerGenerator extends Generator {
         $this->connector = $connector;
         $this->filesystem = new Filesystem();
 
-        $qualifiedNameParts = explode('/', $qualifiedName);
-
         $this->parameters = $this->loadParameters(config('generators.controller_parameter_path'));
         $this->modelParameters = $this->loadParameters(config('generators.model_parameter_path'));
 
-        $this->setNamespace($qualifiedNameParts);
-        $this->setClassName($qualifiedNameParts);
+        $this->setNamespace($qualifiedName);
+        $this->setClassName($qualifiedName);
         $this->setTargetFilePath(config('generators.controller_target_path'), $qualifiedName);
         $this->setQualifiedName(config('generators.controller_sub_namespace') . "{$this->getNamespace()}\\{$this->getClassName()}");
         $this->setMainModelName($mainModelName);
@@ -134,26 +131,12 @@ class ControllerGenerator extends Generator {
 
         $this->setMainModelInstanceName($this->getMainModelName());
         $this->setMainModelInstance($this->getMainModelQualifiedName());
-
-        $this->mainModelPrimaryKeyName = $this->mainModelInstance->primaryKey;
-
+        $this->setMainModelPrimaryKeyName($this->mainModelInstance->primaryKey);
         $this->setTableName($this->mainModelInstance->table);
         $this->setDatabaseName($this->mainModelInstance->table);
         $this->setQualifiedTableName($this->getDatabaseName(), $this->getTableName());
-
-        $this->allColumns = $this->connector->getColumns($this->databaseName, $this->tableName);
-
-        if (!$this->allColumns) {
-            throw new \InvalidArgumentException("Could not find columns in '{$this->getQualifiedTableName()}'");
-        }
-
-        $nonPrimaryKeyFilter = function($column) {
-            return (strtolower($column->column_name) != strtolower($this->mainModelInstance->primaryKey));
-        };
-        $this->nonPrimaryKeyColumns = array_filter(
-            $this->connector->getColumns($this->databaseName, $this->tableName),
-            $nonPrimaryKeyFilter
-        );
+        $this->setAllColumns($this->connector->getColumns($this->databaseName, $this->tableName));
+        $this->setNonPrimaryKeyColumns($this->getAllColumns());
     }
 
     public function make()
@@ -266,8 +249,19 @@ class ControllerGenerator extends Generator {
         return $this->allColumns;
     }
 
+    /**
+     * Set the value of All collumns of a given table
+     *
+     * @param array allColumns
+     *
+     * @return self
+     */
     public function setAllColumns(array $allColumns)
     {
+        if (empty($allColumns)) {
+            throw new \InvalidArgumentException("Could not find columns in '{$this->getQualifiedTableName()}'");
+        }
+
         $this->allColumns = $allColumns;
 
         return $this;
@@ -278,9 +272,12 @@ class ControllerGenerator extends Generator {
         return $this->nonPrimaryKeyColumns;
     }
 
-    public function setNonPrimaryKeyColumns(array $nonPrimaryKeyColumns)
+    public function setNonPrimaryKeyColumns(array $allColumns)
     {
-        $this->nonPrimaryKeyColumns = $nonPrimaryKeyColumns;
+        $nonPrimaryKeyFilter = function($column) {
+            return (strtolower($column->column_name) != strtolower($this->mainModelInstance->primaryKey));
+        };
+        $this->nonPrimaryKeyColumns = array_filter($allColumns, $nonPrimaryKeyFilter);
 
         return $this;
     }
@@ -321,8 +318,15 @@ class ControllerGenerator extends Generator {
         return $this;
     }
 
-    public function setClassName($qualifiedNameParts)
+    /**
+     * Sets the class name, based on the qualified name
+     *
+     * @param string $qualifiedName Qualified name, with namespaces and class
+     * name like "Namespace/Subnamespace/Model" (with slashes, not backslashes).
+     */
+    public function setClassName($qualifiedName)
     {
+        $qualifiedNameParts = explode("/", $qualifiedName);
         $this->className = array_slice($qualifiedNameParts, -1, 1)[0];
     }
 
@@ -341,8 +345,15 @@ class ControllerGenerator extends Generator {
         $this->connector = $connector;
     }
 
-    public function setNamespace($qualifiedNameParts)
+    /**
+     * Sets the namespace, based on the qualified name
+     *
+     * @param string $qualifiedName Qualified name, with namespaces and class
+     * name like "Namespace/Subnamespace/Model" (with slashes, not backslashes).
+     */
+    public function setNamespace($qualifiedName)
     {
+        $qualifiedNameParts = explode("/", $qualifiedName);
         $this->namespace = implode('\\', array_slice($qualifiedNameParts, 0, count($qualifiedNameParts) - 1));
     }
 
@@ -425,5 +436,16 @@ class ControllerGenerator extends Generator {
         $this->targetFilePath = $path . implode('/', array_slice($qualifiedNameParts, 0, count($qualifiedNameParts) - 1)) . "/{$this->getClassName()}.php";
     }
 
+    public function getMainModelPrimaryKeyName()
+    {
+        return $this->mainModelPrimaryKeyName;
+    }
+
+    public function setMainModelPrimaryKeyName($mainModelPrimaryKeyName)
+    {
+        $this->mainModelPrimaryKeyName = $mainModelPrimaryKeyName;
+
+        return $this;
+    }
 
 }
