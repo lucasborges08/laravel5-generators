@@ -122,15 +122,12 @@ class ModelGenerator extends Generator
 
     public function __construct(Connector $connector, $qualifiedName, $table)
     {
-
-        $qualifiedNameParts = explode("/", $qualifiedName);
-
         $this->filesystem = new Filesystem();
         $this->parameters = $this->loadParameters(config('generators.model_parameter_path'));
         $this->connector = $connector;
-        $this->setNamespace($qualifiedNameParts);
-        $this->setClassName($qualifiedNameParts);
-        $this->setTargetFilePath(config('generators.model_target_path'), $qualifiedNameParts);
+        $this->setNamespace($qualifiedName);
+        $this->setClassName($qualifiedName);
+        $this->setTargetFilePath(config('generators.model_target_path'), $qualifiedName);
 
         $this->setQualifiedName(config('generators.models_sub_namespace') . "{$this->namespace}\\{$this->className}");
         $this->setUsesSoftDeletes(config('generators.defaults.uses_soft_deletes'));
@@ -140,25 +137,10 @@ class ModelGenerator extends Generator
         $this->setQualifiedTableName($this->getDatabaseName(), $this->getTableName());
         $this->setAppNamespace(app()->getNamespace());
 
-        $primaryKeys = $this->connector->getPrimaryKeys($this->getDatabaseName(), $this->getTableName());
-
-        if (!isset($primaryKeys[0])) {
-            throw new \InvalidArgumentException("Could not find primary keys in '{$this->getQualifiedTableName()}'");
-        }
-
-        $this->primaryKey = $primaryKeys[0];
-        $this->primaryKeyName = strtolower($this->primaryKey->column_name);
-
-        $this->allColumns = $this->connector->getColumns($this->getDatabaseName(), $this->getTableName());
-
-        if (empty($this->allColumns)) {
-            throw new \InvalidArgumentException("Could not find columns in '{$this->getQualifiedTableName()}'");
-        }
-
-        $nonPrimaryKeyFilter = function ($column) {
-            return (strtolower($column->column_name) != strtolower($this->getPrimaryKeyName()));
-        };
-        $this->nonPrimaryKeyColumns = array_filter($this->getAllColumns(), $nonPrimaryKeyFilter);
+        $this->setAllColumns($this->connector->getColumns($this->getDatabaseName(), $this->getTableName()));
+        $this->setPrimaryKey($this->connector->getPrimaryKeys($this->getDatabaseName(), $this->getTableName()));
+        $this->setPrimaryKeyName($this->getPrimaryKey());
+        $this->setNonPrimaryKeyColumns($this->getAllColumns());
     }
 
     public function make()
@@ -180,6 +162,7 @@ class ModelGenerator extends Generator
              ->compileDateColumns($content)
              ->compileSeachParameters($content)
              ->compileSoftDeletesUsage($content)
+             ->compileDeletedAtColumns($content)
              ->compileUpdatedAtColumn($content)
              ->compileCreatedAtColumn($content);
         return $content;
@@ -206,21 +189,8 @@ class ModelGenerator extends Generator
         return $this;
     }
 
-    public function compileSoftDeletesUsage(&$content)
+    public function compileDeletedAtColumns(&$content)
     {
-        if (!$this->getUsesSoftDeletes()) {
-            $this->replaceTag('use_soft_deletes_definition', '', $content)
-                 ->replaceTag('use_soft_deletes_trait', '', $content);
-        }
-
-        $this->replaceTag('use_soft_deletes_definition',
-            $this->parameters['use_soft_deletes_definition'],
-            $content)
-        ->replaceTag('use_soft_deletes_trait',
-            $this->parameters['use_soft_deletes_trait'],
-            $content
-        );
-
         $deletedAtFilter = function ($column) {
             if (preg_match('/date|timestamp/i', $column->data_type)
              && preg_match($this->parameters['patterns']['deleted_at_column'], $column->column_name)) {
@@ -242,6 +212,24 @@ class ModelGenerator extends Generator
         } else {
             $this->replaceTag('deleted_at_const', '', $content);
         }
+
+        return $this;
+    }
+
+    public function compileSoftDeletesUsage(&$content)
+    {
+        if (!$this->getUsesSoftDeletes()) {
+            $this->replaceTag('use_soft_deletes_definition', '', $content)
+                 ->replaceTag('use_soft_deletes_trait', '', $content);
+        }
+
+        $this->replaceTag('use_soft_deletes_definition',
+            $this->parameters['use_soft_deletes_definition'],
+            $content)
+        ->replaceTag('use_soft_deletes_trait',
+            $this->parameters['use_soft_deletes_trait'],
+            $content
+        );
 
         return $this;
     }
@@ -339,20 +327,18 @@ class ModelGenerator extends Generator
         return $this;
     }
 
-    public function compileNamespace(&$content)
-    {
-    }
-
     /**
      * Sets the full path where the model will be stored, including namespaces,
      * file name and extension.
      *
      * @param string $path Base folder where models are stored
-     * @param array $qualifiedNameParts Qualified name, with namespaces and class
-     * name like ["Namespace", "Subnamespace", "Model"]
+     * @param string $qualifiedName Qualified name, with namespaces and class
+     * name like "Namespace/Subnamespace/Model" (with slashes, not backslashes).
      */
-    public function setTargetFilePath($path, $qualifiedNameParts)
+    public function setTargetFilePath($path, $qualifiedName)
     {
+        $qualifiedNameParts = explode("/", $qualifiedName);
+
         if (count($qualifiedNameParts) < 2) {
             throw new \InvalidArgumentException('You must inform the class\'s qualified name');
         }
@@ -367,10 +353,12 @@ class ModelGenerator extends Generator
     /**
      * Sets the class name, based on the qualified name
      *
-     * @param array $qualifiedNameParts Class's qualified name, with namespaces
+     * @param string $qualifiedName Qualified name, with namespaces and class
+     * name like "Namespace/Subnamespace/Model" (with slashes, not backslashes).
      */
-    public function setClassName($qualifiedNameParts)
+    public function setClassName($qualifiedName)
     {
+        $qualifiedNameParts = explode("/", $qualifiedName);
         $this->className = array_slice($qualifiedNameParts, -1, 1)[0];
     }
 
@@ -389,8 +377,16 @@ class ModelGenerator extends Generator
         $this->connector = $connector;
     }
 
-    public function setNamespace($qualifiedNameParts)
+    /**
+     * Sets the namespace, based on the qualified name
+     *
+     * @param string $qualifiedName Qualified name, with namespaces and class
+     * name like "Namespace/Subnamespace/Model" (with slashes, not backslashes).
+     */
+    public function setNamespace($qualifiedName)
     {
+        $qualifiedNameParts = explode("/", $qualifiedName);
+
         $this->namespace = implode('\\', array_slice($qualifiedNameParts, 0, count($qualifiedNameParts) - 1));
     }
 
@@ -469,9 +465,9 @@ class ModelGenerator extends Generator
         return $this->primaryKeyName;
     }
 
-    public function setPrimaryKeyName($primaryKeyName)
+    public function setPrimaryKeyName($primaryKey)
     {
-        $this->primaryKeyName = $primaryKeyName;
+        $this->primaryKeyName = strtolower($this->primaryKey->column_name);
 
         return $this;
     }
@@ -481,9 +477,13 @@ class ModelGenerator extends Generator
         return $this->primaryKey;
     }
 
-    public function setPrimaryKey($primaryKey)
+    public function setPrimaryKey($primaryKeys)
     {
-        $this->primaryKey = $primaryKey;
+        if (!isset($primaryKeys[0])) {
+            throw new \InvalidArgumentException("Could not find primary keys in '{$this->getQualifiedTableName()}'");
+        }
+
+        $this->primaryKey = $primaryKeys[0];
 
         return $this;
     }
@@ -507,6 +507,10 @@ class ModelGenerator extends Generator
      */
     public function setAllColumns(array $allColumns)
     {
+        if (empty($allColumns)) {
+            throw new \InvalidArgumentException("Could not find columns in '{$this->getQualifiedTableName()}'");
+        }
+
         $this->allColumns = $allColumns;
 
         return $this;
@@ -517,9 +521,12 @@ class ModelGenerator extends Generator
         return $this->nonPrimaryKeyColumns;
     }
 
-    public function setNonPrimaryKeyColumns(array $nonPrimaryKeyColumns)
+    public function setNonPrimaryKeyColumns(array $columns)
     {
-        $this->nonPrimaryKeyColumns = $nonPrimaryKeyColumns;
+        $nonPrimaryKeyFilter = function ($column) {
+            return (strtolower($column->column_name) != strtolower($this->getPrimaryKeyName()));
+        };
+        $this->nonPrimaryKeyColumns = array_filter($columns, $nonPrimaryKeyFilter);
 
         return $this;
     }
