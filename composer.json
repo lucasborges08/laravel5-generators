@@ -16,7 +16,10 @@
     "autoload": {
         "psr-4": {
             "Bronco\\LaravelGenerators\\": "src/"
-        }
+        },
+        "files": [
+            "src/helpers.php"
+        ]
     },
-    "minimum-stability": "dev"
+    "minimum-stability": "stable"
 }
