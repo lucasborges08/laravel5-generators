@@ -113,28 +113,21 @@ class ModelGenerator extends Generator
      */
     protected $nonPrimaryKeyColumns;
 
-    /**
-     * Filesystem instance, used to get the stub content
-     * @var \Illuminate\Filesystem\Filesystem
-     */
-    private $filesystem;
-
-    public function __construct(Connector $connector, $qualifiedName, $table)
+    public function __construct(Connector $connector, $qualifiedName, $table, $appNamespace)
     {
-        $this->filesystem = new Filesystem();
         $this->parameters = $this->loadParameters(config('generators.model_parameter_path'));
         $this->connector = $connector;
         $this->setNamespace($qualifiedName);
         $this->setClassName($qualifiedName);
         $this->setTargetFilePath(config('generators.model_target_path'), $qualifiedName);
 
+        $this->setAppNamespace($appNamespace);
         $this->setQualifiedName(config('generators.models_sub_namespace') . "{$this->namespace}\\{$this->className}");
         $this->setUsesSoftDeletes(config('generators.defaults.uses_soft_deletes'));
         $this->setUsesSequence(is_a($this->connector, "Bronco\LaravelGeneratorsConnectors\OracleConnector"));
         $this->setTableName($table);
         $this->setDatabaseName($table);
         $this->setQualifiedTableName($this->getDatabaseName(), $this->getTableName());
-        $this->setAppNamespace(app()->getNamespace());
 
         $this->setAllColumns($this->connector->getColumns($this->getDatabaseName(), $this->getTableName()));
         $this->setPrimaryKey($this->connector->getPrimaryKeys($this->getDatabaseName(), $this->getTableName()));
@@ -149,7 +142,8 @@ class ModelGenerator extends Generator
 
     public function compileTags()
     {
-        $content = $this->filesystem->get(config('generators.model_template_path'));
+        $filesystem = new Filesystem();
+        $content = $filesystem->get(config('generators.model_template_path'));
 
         $this->replaceTag('app_namespace', $this->getAppNamespace(), $content)
              ->replaceTag('namespace', $this->getNamespace(), $content)
@@ -208,9 +202,10 @@ class ModelGenerator extends Generator
             $deletedAtConst = $this->parameters['deleted_at_const'];
             $this->replaceTag('deleted_at_column', strtolower($deletedAtColumn->column_name), $deletedAtConst)
                  ->replaceTag('deleted_at_const', $deletedAtConst, $content);
-        } else {
-            $this->replaceTag('deleted_at_const', '', $content);
+            return $this;
         }
+
+        $this->replaceTag('deleted_at_const', '', $content);
 
         return $this;
     }
@@ -252,9 +247,10 @@ class ModelGenerator extends Generator
             $createdAtConst = $this->parameters['created_at_const'];
             $this->replaceTag('created_at_column', strtolower($createdAtColumn->column_name), $createdAtConst)
                  ->replaceTag('created_at_const', $createdAtConst, $content);
-        } else {
-            $this->replaceTag('created_at_const', '', $content);
+            return $this;
         }
+
+        $this->replaceTag('created_at_const', '', $content);
 
         return $this;
     }
@@ -278,9 +274,10 @@ class ModelGenerator extends Generator
             $updatedAtConst = $this->parameters['updated_at_const'];
             $this->replaceTag('updated_at_column', strtolower($updatedAtColumn->column_name), $updatedAtConst)
                  ->replaceTag('updated_at_const', $updatedAtConst, $content);
-        } else {
-            $this->replaceTag('updated_at_const', '', $content);
+            return $this;
         }
+
+        $this->replaceTag('updated_at_const', '', $content);
 
         return $this;
     }
@@ -297,9 +294,10 @@ class ModelGenerator extends Generator
                  ->replaceTag('sequence_name', $sequenceName, $sequenceProperty)
                  ->replaceTag('database_name', $this->databaseName, $sequenceProperty)
                  ->replaceTag('sequence_property', $sequenceProperty, $content);
-        } else {
-            $this->replaceTag('sequence_property', '', $content);
+            return $this;
         }
+
+        $this->replaceTag('sequence_property', '', $content);
 
         return $this;
     }
@@ -426,12 +424,14 @@ class ModelGenerator extends Generator
 
             if (count($tableParts) == 2) {
                 $this->tableName = $tableParts[1];
-            } else {
-                $this->tableName = $tableParts[0];
+                return;
             }
-        } else {
-            $this->tableName = snake_case($this->className).'s';
+
+            $this->tableName = $tableParts[0];
+            return;
         }
+
+        $this->tableName = snake_case($this->className).'s';
     }
 
     public function getTableName()
